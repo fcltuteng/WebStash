@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>USB 设备写入示例</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            padding: 0;
+        }
+
+        label {
+            margin-bottom: 10px;
+            font-weight: bold;
+        }
+
+        input {
+            width: 100%;
+            max-width: 500px;
+            padding: 10px;
+            margin-bottom: 20px;
+            box-sizing: border-box;
+        }
+
+        button {
+            padding: 10px 15px;
+            cursor: pointer;
+        }
+
+        ul {
+            list-style-type: none;
+            padding: 0;
+        }
+
+        li {
+            padding: 10px;
+            border: 1px solid #ccc;
+            margin-bottom: 5px;
+        }
+    </style>
+</head>
+<body>
+    <h1>USB 设备写入示例</h1>
+    
+    <label for="dataInput">输入要写入的数据（例如：E2 A0 F8 00）:</label>
+    <input type="text" id="dataInput" placeholder="输入十六进制数据..." value="09 03 02 00 00 00 00 f1 00 00 04 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00">
+    <button id="writeToDeviceButton">写入数据到 USB 设备</button>
+    <ul id="deviceList"></ul>
+
+    <script>
+	
+        let selectedDevice = null;
+
+        async function requestUSBDevice() {
+            try {
+                selectedDevice = await navigator.usb.requestDevice({ filters: [] });
+                console.log('已选择设备:', selectedDevice);
+                return selectedDevice;
+            } catch (error) {
+                console.error('请求设备失败:', error);
+                return null;
+            }
+        }
+
+        async function writeToDevice(data) {
+            if (!selectedDevice) {
+                console.error('没有选择设备');
+                return;
+            }
+
+            try {
+                await selectedDevice.open(); // 打开设备
+                await selectedDevice.selectConfiguration(1); // 选择配置
+                await selectedDevice.claimInterface(0); // 声明接口
+
+                <!-- // 将数据写入设备 -->
+                <!-- const result = await selectedDevice.transferOut(1, data); -->
+                <!-- console.log('数据写入成功:', result); -->
+                alert('数据写入成功！');
+            } catch (error) {
+                console.error('写入设备时出错:', error);
+            } finally {
+                await selectedDevice.close(); // 关闭设备
+            }
+        }
+
+        document.getElementById("writeToDeviceButton").addEventListener("click", async () => {
+            const device = await requestUSBDevice();
+            if (device) {
+                const inputData = document.getElementById("dataInput").value.trim();
+                const hexArray = inputData.split(' ').map(hex => parseInt(hex, 16)); // 转换为字节数组
+                const dataToSend = new Uint8Array(hexArray); // 创建 Uint8Array
+
+                await writeToDevice(dataToSend); // 调用写入函数
+            }
+        });
+		window.addEventListener("load", function() {
+			console.log("页面已加载完成！");
+			navigator.usb.addEventListener("connect", (e) => {
+				console.log("新连上的设备", e.device);
+			  });
+
+			  navigator.usb.addEventListener("disconnect", (e) => {
+				console.log("断开的设备", e.device);
+			  });
+		});
+    </script>
+</body>
+</html>
