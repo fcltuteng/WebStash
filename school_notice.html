@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>班级通知</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+        }
+
+        label {
+            margin-bottom: 10px;
+            font-weight: bold;
+        }
+
+        textarea {
+            width: 100%;
+            max-width: 500px;
+            height: 100px;
+            margin-bottom: 20px;
+            padding: 10px;
+            box-sizing: border-box;
+            resize: none; /* 禁止调整大小 */
+        }
+
+        button {
+            width: 100%;
+            max-width: 250px;
+            padding: 10px;
+            margin-bottom: 10px;
+            cursor: pointer;
+        }
+
+        .responseOutput {
+            width: 100%;
+            max-width: 500px;
+            height: 150px;
+            background-color: #f4f4f4;
+            padding: 10px;
+            overflow: auto; /* 添加滚动条 */
+            white-space: pre-wrap; /* 处理换行 */
+            word-wrap: break-word; /* 处理长单词换行 */
+            border: 1px solid #ccc;
+            resize: none; /* 禁止调整大小 */
+        }
+    </style>
+</head>
+<body>
+    <h1>班级通知</h1>
+    
+    <label for="noticeInput">输入通知内容（可换行）:</label>
+    <textarea id="noticeInput" placeholder="请输入通知内容..."></textarea>
+    
+    <button id="putRequest">发布通知</button>
+    <button id="getRequest">读取通知</button>
+    
+    <label for="responseOutput">响应内容:</label>
+    <textarea id="responseOutput" class="responseOutput" readonly></textarea>
+
+    <div id="loading" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.5); color: white; display: flex; justify-content: center; align-items: center; z-index: 1000;">
+        加载中...
+    </div>
+
+    <script>
+        const url = "https://jsonblob.com/api/jsonBlob/1306427336986320896"; 
+
+        // 获取当前时间并格式化为 YYYYMMDDHHMMSS
+        function getCurrentTime() {
+            const now = new Date();
+            const year = now.getFullYear();
+            const month = String(now.getMonth() + 1).padStart(2, '0'); // 月份从0开始
+            const day = String(now.getDate()).padStart(2, '0');
+            const hours = String(now.getHours()).padStart(2, '0');
+            const minutes = String(now.getMinutes()).padStart(2, '0');
+            const seconds = String(now.getSeconds()).padStart(2, '0');
+            return `${year}${month}${day}${hours}${minutes}${seconds}`;
+        }
+
+        // 设置请求超时的函数
+        function fetchWithTimeout(url, options, timeout = 20000) {
+            return Promise.race([
+                fetch(url, options),
+                new Promise((_, reject) =>
+                    setTimeout(() => reject(new Error('请求超时')), timeout)
+                )
+            ]);
+        }
+
+        const forbiddenWords = [            
+		    "\u7231\u5973\u4eba", "\u7231\u6db2", "\u6309\u6469\u68d2", "\u7206\u8349", "\u66b4\u5e72", "\u66b4\u5978", "\u66b4\u4e73", "\u7206\u4e73", "\u66b4\u6deb", "\u5c44", 
+            "\u88ab\u63d2", "\u88ab\u64cd", "\u88ab\u5e72", "\u903c\u5978", "\u4ed3\u4e95\u7a7a", "\u63d2\u66b4", "\u64cd\u903c", "\u64cd\u9ed1", "\u64cd\u70c2", "\u808f\u4f60", 
+            "\u808f\u6b7b", "\u64cd\u6b7b", "\u64cd\u6211", "\u5395\u5974", "\u63d2\u6bd4", "\u63d2b", "\u63d2\u903c", "\u63d2\u8fdb", "\u63d2\u4f60", "\u63d2\u6211", 
+            "\u63d2\u9634", "\u6f6e\u5439", "\u6f6e\u55b7", "\u6210\u4ebadv", "\u6210\u4eba\u7535\u5f71", "\u6210\u4eba\u8bba\u575b", "\u6210\u4eba\u5c0f\u8bf4", "\u6210\u4eba\u7535", 
+            "\u6210\u4eba\u5361\u901a", "\u6210\u4eba\u804a", "\u6210\u4eba\u7247", "\u6210\u4eba\u89c6", "\u6210\u4eba\u56fe", "\u6210\u4eba\u6587", "\u6210\u4eba\u5c0f", "\u8273\u60c5\u5c0f\u8bf4",
+            "\u6210\u4eba\u6e38\u620f", "\u5403\u7cbe", "\u8d64\u88f8", "\u62bd\u63d2", "\u6625\u836f", "\u5927\u6ce2", "\u5927\u529b\u62bd\u9001", "\u5927\u4e73", "\u8361\u5987",
+            "\u8361\u5973", "\u76d7\u64ae", "\u591a\u4eba\u8f6e", "\u53d1\u6d6a", "\u653e\u5c3f", "\u80a5\u903c", "\u7c89\u7a74", "\u5c01\u9762\u5973\u90ce", "\u98ce\u6708\u5927\u9646",
+            "\u5e72\u6b7b\u4f60", "\u5e72\u7a74", "\u809b\u4ea4", "\u809b\u95e8", "\u9f9f\u5934", "\u56fd\u4ea7av", "\u597d\u5ae9", "\u8c6a\u4e73", "\u9ed1\u903c",
+            "\u540e\u5ead", "\u540e\u7a74", "\u864e\u9a91", "\u82b1\u82b1\u516c\u5b50", "\u6362\u59bb\u4ff1\u4e50\u90e8", "\u9ec4\u7247", "\u9e21\u5427", "\u9e21\u5df4",
+			"\u9e21\u5978", "\u5993\u5973", "\u6fc0\u60c5", "\u96c6\u4f53\u6deb", "\u5978\u60c5", "\u53eb\u5e8a", "\u811a\u4ea4", "\u91d1\u9cde\u5c82\u662f\u6c60\u4e2d\u7269",
+			"\u7cbe\u6db2", "\u5de8\u5c4c", "\u83ca\u82b1\u6d1e", "\u83ca\u95e8", "\u5de8\u5976", "\u5de8\u4e73", "\u83ca\u7a74", "\u5f00\u82de", "\u53e3\u7206",
+			"\u53e3\u4ea4", "\u53e3\u5c04", "\u53e3\u6deb", "\u88e4\u889c", "\u72c2\u64cd", "\u72c2\u63d2", "\u6d6a\u903c", "\u6d6a\u5987", "\u6d6a\u53eb",
+			"\u6d6a\u5973", "\u72fc\u53cb", "\u804a\u6027", "\u6d41\u6deb", "\u6f0f\u4e73", "\u9732b", "\u4e71\u4ea4", "\u4e71\u4f26", "\u8f6e\u66b4",
+			"\u8f6e\u5978", "\u88f8\u966a", "\u4e70\u6625", "\u7f8e\u903c", "\u7f8e\u5c11\u5987", "\u7f8e\u4e73", "\u7f8e\u817f", "\u7f8e\u7a74", "\u5ae9\u903c",
+			"\u5ae9\u5973", "\u5ae9\u7a74", "\u634f\u5f04", "\u5973\u4f18", "\u70ae\u53cb", "\u55b7\u7cbe", "\u5c41\u773c", "\u524d\u51f8\u540e\u7fd8", "\u5f3a\u5978\u5904\u5973",
+			"\u60c5\u8da3\u7528\u54c1", "\u60c5\u8272", "\u62f3\u4ea4", "\u5168\u88f8", "\u7fa4\u4ea4", "\u4eba\u59bb", "\u65e5\u903c", "\u65e5\u70c2", "\u8089\u68d2",
+			"\u8089\u903c", "\u8089\u5507", "\u8089\u6d1e", "\u8089\u7f1d", "\u8089\u68cd", "\u8089\u830e", "\u8089\u5177", "\u63c9\u4e73", "\u8089\u7a74",
+			"\u8089\u6b32", "\u4e73\u7206", "\u4e73\u623f", "\u4e73\u6c9f", "\u4e73\u4ea4", "\u4e73\u5934", "\u4e09\u7ea7\u7247", "\u9a9a\u903c", "\u9a9a\u6bd4",
+			"\u9a9a\u5973", "\u9a9a\u6c34", "\u9a9a\u7a74", "\u8272\u903c", "\u8272\u754c", "\u8272\u60c5\u7f51\u7ad9", "\u8272\u533a", "\u8272\u8272", "\u8272\u8bf1",
+			"\u5c11\u5e74\u963f\u5bbe", "\u5c04\u723d", "\u5c04\u989c", "\u98df\u7cbe", "\u91ca\u6b32", "\u517d\u5978", "\u517d\u4ea4", "\u624b\u6deb", "\u517d\u6b32",
+			"\u719f\u5987", "\u719f\u5973", "\u723d\u7247", "\u53cc\u81c0", "\u6b7b\u903c", "\u4e1d\u889c", "\u677e\u5c9b\u67ab", "\u9165\u75d2", "\u6c64\u52a0\u4e3d",
+			"\u4f53\u5978", "\u8214\u811a", "\u8214\u9634", "\u8c03\u6559", "\u5077\u6b22", "\u63a8\u6cb9", "\u8131\u5185\u88e4", "\u6587\u505a", "\u6211\u5c31\u8272",
+			"\u65e0\u7801", "\u821e\u5973", "\u65e0\u4fee\u6b63", "\u5438\u7cbe", "\u590f\u5ddd\u7eaf", "\u5c0f\u903c", "\u6821\u9e21", "\u5c0f\u7a74", "\u6027\u611f\u5996\u5a06",
+			"\u6027\u611f\u8bf1\u60d1", "\u6027\u864e", "\u6027\u9965\u6e34", "\u6027\u4ea4", "\u6027\u5974", "\u6027\u8650", "\u6027\u6b32", "\u80f8\u63a8", "\u7a74\u53e3",
+			"\u5b66\u751f\u59b9", "\u7a74\u56fe", "\u989c\u5c04", "\u9633\u5177", "\u8981\u5c04\u4e86", "\u4e00\u591c\u6b22", "\u4e00\u591c\u60c5", "\u9634\u90e8",
+			"\u6deb\u866b", "\u9634\u5507", "\u6deb\u8361", "\u9634\u9053", "\u6deb\u7535\u5f71", "\u9634\u961c", "\u6deb\u5987", "\u9634\u6838", "\u9634\u6237",
+			"\u6deb\u8d31", "\u6deb\u53eb", "\u6deb\u6559\u5e08", "\u9634\u830e", "\u9634\u7cbe", "\u6deb\u6d6a", "\u6deb\u5a9a", "\u6deb\u9b54", "\u6deb\u6bcd",
+			"\u6deb\u5973", "\u6deb\u8650", "\u6deb\u59bb", "\u6deb\u60c5", "\u6deb\u8272", "\u6deb\u6c34", "\u6deb\u5a03", "\u6deb\u5a01", "\u6deb\u4eb5",
+			"\u6deb\u6db2", "\u6deb\u7167", "\u5e94\u53ec", "\u5e7c\u4ea4", "\u5e7c\u7537", "\u5e7c\u5973", "\u6b32\u706b", "\u6b32\u5973", "\u7389\u5973\u5fc3\u7ecf",
+			"\u7389\u84b2\u56e2", "\u7389\u4e73", "\u6b32\u4ed9\u6b32\u6b7b", "\u7389\u7a74", "\u63f4\u4ea4", "\u539f\u5473\u5185\u8863", "\u63f4\u52a9\u4ea4\u9645", "\u5f20\u7b71\u96e8",
+			"\u62db\u9e21", "\u62db\u5993", "\u4e2d\u5e74\u7f8e\u5987", "\u6293\u80f8", "\u81ea\u62cd", "\u81ea\u6170", "\u4f5c\u7231", "18\u7981", "99bb",
+			"adult", "amateur", "anal", "a\u7247", "fuck", "gay\u7247", "g\u70b9", "g\u7247", "hardcore",
+			"h\u52a8\u753b", "h\u52a8\u6f2b", "incest", "porn", "secom", "sexinsex", "sm\u5973\u738b", "xiao77",
+			"xing\u4f34\u4fa3", "tokyohot", "yin\u8361",
+			// 来自暴力词库
+			"\u66b4\u529b", "\u6050\u6016", "\u717d\u52a8", "\u5206\u88c2", "\u98a0\u8986", "\u90aa\u6559", "\u8c23\u8a00", "\u653f\u6cbb", "\u654f\u611f", "\u4e0d\u5f53",
+			"\u8fdd\u6cd5", "\u8fb1\u9a82", "\u4fae\u8fb1", "\u8bfd\u8c24", "\u62a8\u51fb", "\u653b\u51fb", "\u6311\u8845"
+        ]; // 请根据实际情况添加更多词汇
+
+        window.onload = function() {
+            // 页面加载完成后，确保加载指示器不显示
+            document.getElementById("loading").style.display = "none"; 
+        };
+
+        document.getElementById("putRequest").addEventListener("click", async () => {
+            // 显示加载指示器
+            document.getElementById("loading").style.display = "flex"; 
+            
+            const noticeContent = document.getElementById("noticeInput").value.trim();
+
+            // 检查通知内容是否为空
+            if (!noticeContent) {
+                alert("通知内容不能为空，请输入内容后再发送请求。");
+                return; // 终止函数执行
+            }
+
+            // 检查是否包含违规用词
+            for (const word of forbiddenWords) {
+                if (noticeContent.includes(word)) {
+                    alert(`通知内容包含违规用词：${word}，请修改后再发布。`);
+                    return; // 终止函数执行
+                }
+            }
+
+            // 二次确认提示
+            const confirmMessage = `您即将发布以下通知内容：\n${noticeContent}\n\n确认发布吗？`;
+            if (!confirm(confirmMessage)) {
+                return; // 用户取消，终止函数执行
+            }
+
+            const data = {
+                title: "一年级(2)班",
+                notice: noticeContent,
+                publish_time: getCurrentTime() // 自动填充当前时间
+            };
+
+            try {
+                const response = await fetchWithTimeout(url, {
+                    method: "PUT",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "Accept": "application/json"
+                    },
+                    body: JSON.stringify(data)
+                });
+
+                // 隐藏加载指示器
+                document.getElementById("loading").style.display = "none"; 
+                
+                if (response.ok) {
+                    document.getElementById("responseOutput").value = "已发布通知：\n" + JSON.stringify(data, null, 2);
+                    alert("通知发布成功！"); // 发布成功弹窗提示
+                } else {
+                    document.getElementById("responseOutput").value = "发布通知失败！";
+                }
+            } catch (error) {
+                // 隐藏加载指示器
+                document.getElementById("loading").style.display = "none"; 
+                document.getElementById("responseOutput").value = error.message; // 显示超时错误
+            }
+        });
+
+        document.getElementById("getRequest").addEventListener("click", async () => {
+            // 显示加载指示器
+            document.getElementById("loading").style.display = "flex"; 
+            
+            try {
+                const response = await fetchWithTimeout(url, {
+                    method: "GET",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "Accept": "application/json"
+                    }
+                });
+
+                // 隐藏加载指示器
+                document.getElementById("loading").style.display = "none"; 
+                
+                if (response.ok) {
+                    const responseData = await response.json();
+                    document.getElementById("responseOutput").value = "已获取通知：\n" + JSON.stringify(responseData, null, 2);
+                } else {
+                    document.getElementById("responseOutput").value = "读取通知失败！";
+                }
+            } catch (error) {
+                // 隐藏加载指示器
+                document.getElementById("loading").style.display = "none"; 
+                document.getElementById("responseOutput").value = error.message; // 显示超时错误
+            }
+        });
+    </script>
+</body>
+</html>
